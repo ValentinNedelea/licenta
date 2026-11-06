@@ -1,0 +1,828 @@
+// Database schema: reading platform (PostgreSQL + pgvector)
+// Paste this file into https://dbdiagram.io/d to see and export the full ER diagram.
+// Ratings use the scale 0-5 with step 0.25 (decimal(3,2)).
+// Common audit columns (created_at, updated_at) are listed on core tables only.
+
+Project reading_platform {
+  database_type: 'PostgreSQL'
+}
+
+// ---------------------------------------------------------------
+// USERS AND AUTH
+// ---------------------------------------------------------------
+Table users {
+  id bigint [pk, increment]
+  email varchar(254) [unique, not null]
+  username varchar(50) [unique, not null]
+  password_hash varchar [not null]
+  first_name varchar(100)
+  last_name varchar(100)
+  date_of_birth date
+  avatar_url varchar
+  bio text
+  country varchar(2)
+  social_instagram varchar(100)
+  role varchar(20) [default: 'user', note: 'user | moderator | admin']
+  is_active boolean [default: true]
+  email_verified_at timestamptz
+  last_login_at timestamptz
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table user_settings {
+  user_id bigint [pk, ref: - users.id]
+  theme varchar(20) [default: 'system']
+  language varchar(5) [default: 'ro']
+  profile_visibility varchar(10) [default: 'public', note: 'public | friends | private']
+  shelves_visibility varchar(10)
+  reviews_visibility varchar(10)
+  stats_visibility varchar(10)
+  daily_reminder_time time
+  email_notifications boolean
+  notification_prefs jsonb
+}
+
+Table user_social_links {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  platform varchar(20)
+  handle_or_url varchar
+  indexes { (user_id, platform) [unique] }
+}
+
+Table auth_tokens {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  type varchar(20) [note: 'email_verification | password_reset']
+  token_hash varchar [not null]
+  expires_at timestamptz
+  used_at timestamptz
+}
+
+Table oauth_accounts {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  provider varchar(20)
+  provider_user_id varchar
+  indexes { (provider, provider_user_id) [unique] }
+}
+
+Table push_subscriptions {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  endpoint varchar [unique]
+  p256dh_key varchar
+  auth_key varchar
+  created_at timestamptz
+}
+
+// ---------------------------------------------------------------
+// CATALOG
+// ---------------------------------------------------------------
+Table series {
+  id bigint [pk, increment]
+  name varchar [unique]
+  description text
+}
+
+Table books {
+  id bigint [pk, increment]
+  title varchar(500) [not null]
+  subtitle varchar
+  description text
+  isbn10 varchar(10)
+  isbn13 varchar(13) [unique]
+  cover_img_url varchar
+  publication_date date
+  language varchar(10)
+  page_count int
+  publisher varchar
+  series_id bigint [ref: > series.id]
+  series_position numeric
+  avg_rating numeric(3,2) [default: 0]
+  rating_count int [default: 0]
+  external_source varchar(20)
+  external_id varchar
+  created_by_user_id bigint [ref: > users.id]
+  created_at timestamptz
+  updated_at timestamptz
+  indexes { (external_source, external_id) [unique] }
+}
+
+Table authors {
+  id bigint [pk, increment]
+  name varchar [not null]
+  bio text
+  avatar_url varchar
+  country varchar
+  birth_date date
+  death_date date
+  user_id bigint [unique, ref: - users.id, note: 'set when the author profile is claimed']
+  claimed_at timestamptz
+  external_id varchar
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table author_claim_requests {
+  id bigint [pk, increment]
+  author_id bigint [ref: > authors.id]
+  user_id bigint [ref: > users.id]
+  status varchar(10) [default: 'pending', note: 'pending | approved | rejected']
+  message text
+  requested_at timestamptz
+  reviewed_at timestamptz
+  reviewed_by_admin_id bigint [ref: > users.id]
+}
+
+Table book_authors {
+  book_id bigint [ref: > books.id]
+  author_id bigint [ref: > authors.id]
+  role varchar(20) [default: 'author']
+  position smallint
+  indexes { (book_id, author_id, role) [pk] }
+}
+
+Table genres {
+  id bigint [pk, increment]
+  name varchar [not null]
+  slug varchar [unique]
+  parent_genre_id bigint [ref: > genres.id]
+  book_count int [default: 0]
+}
+
+Table book_genres {
+  book_id bigint [ref: > books.id]
+  genre_id bigint [ref: > genres.id]
+  indexes { (book_id, genre_id) [pk] }
+}
+
+Table tags {
+  id bigint [pk, increment]
+  name varchar
+  slug varchar [unique]
+}
+
+Table book_tags {
+  book_id bigint [ref: > books.id]
+  tag_id bigint [ref: > tags.id]
+  added_by_user_id bigint [ref: > users.id]
+  created_at timestamptz
+  indexes { (book_id, tag_id) [pk] }
+}
+
+Table book_editions {
+  id bigint [pk, increment]
+  book_id bigint [ref: > books.id]
+  isbn13 varchar(13)
+  format varchar(20)
+  publisher varchar
+  publication_date date
+  page_count int
+  cover_img_url varchar
+}
+
+// ---------------------------------------------------------------
+// PERSONAL LIBRARY AND TRACKING
+// ---------------------------------------------------------------
+Table shelves {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  name varchar(100)
+  description text
+  kind varchar(20) [default: 'custom', note: 'want_to_read | currently_reading | read | favorites | custom']
+  is_public boolean
+  position smallint
+  created_at timestamptz
+  updated_at timestamptz
+  indexes { (user_id, name) [unique] }
+}
+
+Table shelf_books {
+  shelf_id bigint [ref: > shelves.id]
+  book_id bigint [ref: > books.id]
+  added_at timestamptz
+  position int
+  indexes { (shelf_id, book_id) [pk] }
+}
+
+Table reading_progress {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  book_id bigint [ref: > books.id]
+  status varchar(20) [note: 'want_to_read | reading | read | dnf']
+  current_page int
+  percent numeric(5,2)
+  started_at date
+  finished_at date
+  read_number smallint [default: 1]
+  private_notes text
+  updated_at timestamptz
+  indexes { (user_id, book_id, read_number) [unique] }
+}
+
+Table reading_sessions {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  book_id bigint [ref: > books.id]
+  reading_progress_id bigint [ref: > reading_progress.id]
+  started_at timestamptz
+  ended_at timestamptz
+  duration_seconds int
+  start_page int
+  end_page int
+  pages_read int
+  source varchar(10) [note: 'timer | manual']
+  indexes { (user_id, started_at) }
+}
+
+Table reading_goals {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  year smallint
+  goal_type varchar(10) [default: 'books', note: 'books | pages | minutes']
+  target int
+  created_at timestamptz
+  updated_at timestamptz
+  indexes { (user_id, year, goal_type) [unique] }
+}
+
+Table user_streaks {
+  user_id bigint [pk, ref: - users.id]
+  current_streak int
+  longest_streak int
+  last_read_date date
+  freezes_available smallint
+  updated_at timestamptz
+}
+
+Table user_stats_monthly {
+  user_id bigint [ref: > users.id]
+  month date
+  books_finished int
+  pages_read int
+  minutes_read int
+  avg_rating_given numeric(3,2)
+  indexes { (user_id, month) [pk] }
+}
+
+// ---------------------------------------------------------------
+// REVIEWS, QUOTES, LISTS
+// ---------------------------------------------------------------
+Table book_reviews {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  book_id bigint [ref: > books.id]
+  rating numeric(3,2) [note: '0-5, step 0.25']
+  review_text text
+  has_spoilers boolean [default: false]
+  spoiler_score real
+  sentiment_score real
+  helpful_count int [default: 0]
+  comments_count int [default: 0]
+  is_hidden boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+  indexes {
+    (user_id, book_id) [unique]
+    (book_id, created_at)
+  }
+}
+
+Table review_likes {
+  user_id bigint [ref: > users.id]
+  review_id bigint [ref: > book_reviews.id]
+  created_at timestamptz
+  indexes { (user_id, review_id) [pk] }
+}
+
+Table review_comments {
+  id bigint [pk, increment]
+  review_id bigint [ref: > book_reviews.id]
+  user_id bigint [ref: > users.id]
+  parent_comment_id bigint [ref: > review_comments.id]
+  body text
+  created_at timestamptz
+  updated_at timestamptz
+  deleted_at timestamptz
+}
+
+Table review_aspect_ratings {
+  review_id bigint [ref: > book_reviews.id]
+  aspect varchar(20)
+  rating smallint
+  indexes { (review_id, aspect) [pk] }
+}
+
+Table quotes {
+  id bigint [pk, increment]
+  book_id bigint [ref: > books.id]
+  author_id bigint [ref: > authors.id]
+  text text [not null]
+  page_number int
+  note text
+  created_by_user_id bigint [ref: > users.id]
+  is_public boolean
+  likes_count int [default: 0]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table quote_likes {
+  user_id bigint [ref: > users.id]
+  quote_id bigint [ref: > quotes.id]
+  created_at timestamptz
+  indexes { (user_id, quote_id) [pk] }
+}
+
+Table book_lists {
+  id bigint [pk, increment]
+  owner_user_id bigint [ref: > users.id, note: 'null = curated list']
+  title varchar
+  description text
+  cover_img_url varchar
+  is_public boolean
+  is_curated boolean
+  likes_count int [default: 0]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table book_list_items {
+  list_id bigint [ref: > book_lists.id]
+  book_id bigint [ref: > books.id]
+  position int
+  note text
+  added_at timestamptz
+  indexes { (list_id, book_id) [pk] }
+}
+
+Table book_list_likes {
+  user_id bigint [ref: > users.id]
+  list_id bigint [ref: > book_lists.id]
+  created_at timestamptz
+  indexes { (user_id, list_id) [pk] }
+}
+
+Table book_activity_daily {
+  book_id bigint [ref: > books.id]
+  day date
+  shelf_adds int
+  ratings_count int
+  reviews_count int
+  views_count int
+  indexes { (book_id, day) [pk] }
+}
+
+// ---------------------------------------------------------------
+// SOCIAL
+// ---------------------------------------------------------------
+Table follows {
+  follower_id bigint [ref: > users.id]
+  following_id bigint [ref: > users.id]
+  status varchar(10) [default: 'accepted', note: 'pending | accepted; add friend implies follow']
+  created_at timestamptz
+  indexes { (follower_id, following_id) [pk] }
+}
+
+Table user_blocks {
+  blocker_id bigint [ref: > users.id]
+  blocked_id bigint [ref: > users.id]
+  created_at timestamptz
+  indexes { (blocker_id, blocked_id) [pk] }
+}
+
+Table activities {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  type varchar(20)
+  book_id bigint [ref: > books.id]
+  review_id bigint [ref: > book_reviews.id]
+  quote_id bigint [ref: > quotes.id]
+  list_id bigint [ref: > book_lists.id]
+  payload jsonb
+  visibility varchar(10)
+  likes_count int [default: 0]
+  comments_count int [default: 0]
+  created_at timestamptz
+  indexes { (user_id, created_at) }
+}
+
+Table activity_likes {
+  user_id bigint [ref: > users.id]
+  activity_id bigint [ref: > activities.id]
+  created_at timestamptz
+  indexes { (user_id, activity_id) [pk] }
+}
+
+Table activity_comments {
+  id bigint [pk, increment]
+  activity_id bigint [ref: > activities.id]
+  user_id bigint [ref: > users.id]
+  body text
+  created_at timestamptz
+  updated_at timestamptz
+  deleted_at timestamptz
+}
+
+Table discussions {
+  id bigint [pk, increment]
+  book_id bigint [ref: > books.id]
+  user_id bigint [ref: > users.id]
+  title varchar
+  body text
+  is_locked boolean
+  posts_count int [default: 0]
+  created_at timestamptz
+  updated_at timestamptz
+  deleted_at timestamptz
+}
+
+Table discussion_posts {
+  id bigint [pk, increment]
+  discussion_id bigint [ref: > discussions.id]
+  user_id bigint [ref: > users.id]
+  parent_post_id bigint [ref: > discussion_posts.id]
+  body text
+  created_at timestamptz
+  updated_at timestamptz
+  deleted_at timestamptz
+}
+
+Table reading_clubs {
+  id bigint [pk, increment]
+  name varchar
+  description text
+  owner_id bigint [ref: > users.id]
+  is_private boolean
+  current_book_id bigint [ref: > books.id]
+  created_at timestamptz
+}
+
+Table club_members {
+  club_id bigint [ref: > reading_clubs.id]
+  user_id bigint [ref: > users.id]
+  role varchar(20)
+  joined_at timestamptz
+  indexes { (club_id, user_id) [pk] }
+}
+
+Table conversations {
+  id bigint [pk, increment]
+  type varchar(10) [default: 'direct']
+  title varchar
+  created_at timestamptz
+}
+
+Table conversation_participants {
+  conversation_id bigint [ref: > conversations.id]
+  user_id bigint [ref: > users.id]
+  joined_at timestamptz
+  last_read_message_id bigint
+  indexes { (conversation_id, user_id) [pk] }
+}
+
+Table messages {
+  id bigint [pk, increment]
+  conversation_id bigint [ref: > conversations.id]
+  sender_id bigint [ref: > users.id]
+  body text
+  created_at timestamptz
+  edited_at timestamptz
+  deleted_at timestamptz
+  indexes { (conversation_id, created_at) }
+}
+
+Table book_recommendations_sent {
+  id bigint [pk, increment]
+  from_user_id bigint [ref: > users.id]
+  to_user_id bigint [ref: > users.id]
+  book_id bigint [ref: > books.id]
+  message text
+  created_at timestamptz
+  seen_at timestamptz
+}
+
+// ---------------------------------------------------------------
+// GAMIFICATION AND NOTIFICATIONS
+// ---------------------------------------------------------------
+Table badges {
+  id bigint [pk, increment]
+  code varchar(50) [unique]
+  name varchar
+  description text
+  icon_url varchar
+  category varchar(20)
+  criteria jsonb
+  threshold int
+}
+
+Table user_badges {
+  user_id bigint [ref: > users.id]
+  badge_id bigint [ref: > badges.id]
+  earned_at timestamptz
+  progress int
+  indexes { (user_id, badge_id) [pk] }
+}
+
+Table user_progression {
+  user_id bigint [pk, ref: - users.id]
+  xp int
+  level smallint
+  updated_at timestamptz
+}
+
+Table challenges {
+  id bigint [pk, increment]
+  title varchar
+  description text
+  starts_at timestamptz
+  ends_at timestamptz
+  target_type varchar
+  target_value int
+  badge_id bigint [ref: > badges.id]
+}
+
+Table challenge_participants {
+  challenge_id bigint [ref: > challenges.id]
+  user_id bigint [ref: > users.id]
+  progress int
+  completed_at timestamptz
+  joined_at timestamptz
+  indexes { (challenge_id, user_id) [pk] }
+}
+
+Table notifications {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id, note: 'recipient']
+  type varchar(20)
+  actor_id bigint [ref: > users.id]
+  entity_type varchar(30)
+  entity_id bigint [note: 'polymorphic reference, no FK']
+  payload jsonb
+  is_read boolean [default: false]
+  created_at timestamptz
+  read_at timestamptz
+  indexes { (user_id, is_read, created_at) }
+}
+
+// ---------------------------------------------------------------
+// AI: EMBEDDINGS, RECOMMENDATIONS, RAG
+// ---------------------------------------------------------------
+Table book_embeddings {
+  book_id bigint [ref: > books.id]
+  model_name varchar
+  embedding vector(384) [note: 'pgvector; HNSW index, cosine']
+  source_text_hash varchar
+  created_at timestamptz
+  indexes { (book_id, model_name) [pk] }
+}
+
+Table user_taste_profiles {
+  user_id bigint [ref: > users.id]
+  model_name varchar
+  embedding vector(384)
+  based_on_count int
+  updated_at timestamptz
+  indexes { (user_id, model_name) [pk] }
+}
+
+Table recommendation_models {
+  id bigint [pk, increment]
+  name varchar
+  type varchar(20) [note: 'content_based | collaborative | hybrid | popularity']
+  version varchar
+  params jsonb
+  metrics jsonb [note: 'Precision@K, Recall@K, NDCG']
+  trained_at timestamptz
+  is_active boolean
+}
+
+Table recommendations {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  book_id bigint [ref: > books.id]
+  model_id bigint [ref: > recommendation_models.id]
+  score real
+  rank smallint
+  explanation jsonb
+  generated_at timestamptz
+  indexes { (user_id, book_id, model_id) [unique] }
+}
+
+Table recommendation_feedback {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  book_id bigint [ref: > books.id]
+  model_id bigint [ref: > recommendation_models.id]
+  action varchar(20) [note: 'shown | clicked | added | dismissed | rated']
+  created_at timestamptz
+}
+
+Table dataset_ratings {
+  id bigint [pk, increment]
+  dataset varchar(20) [note: 'goodbooks10k | bookcrossing']
+  external_user_id varchar
+  book_id bigint [ref: > books.id]
+  rating smallint
+  indexes { (dataset, external_user_id) }
+}
+
+Table rag_chunks {
+  id bigint [pk, increment]
+  source_type varchar(20) [note: 'book_description | review | quote | discussion']
+  source_id bigint
+  content text
+  metadata jsonb
+  embedding vector(384)
+  created_at timestamptz
+  indexes { (source_type, source_id) }
+}
+
+Table ai_review_summaries {
+  book_id bigint [pk, ref: - books.id]
+  summary_text text
+  pros jsonb
+  cons jsonb
+  reviews_count int
+  model_name varchar
+  generated_at timestamptz
+}
+
+Table assistant_conversations {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  title varchar
+  created_at timestamptz
+}
+
+Table assistant_messages {
+  id bigint [pk, increment]
+  conversation_id bigint [ref: > assistant_conversations.id]
+  role varchar(10)
+  content text
+  sources jsonb [note: 'references to rag_chunks']
+  created_at timestamptz
+}
+
+Table search_logs {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  query varchar
+  mode varchar(10) [note: 'keyword | semantic | hybrid']
+  results_count int
+  clicked_book_id bigint [ref: > books.id]
+  created_at timestamptz
+}
+
+// ---------------------------------------------------------------
+// PLATFORM AND ADMIN
+// ---------------------------------------------------------------
+Table reports {
+  id bigint [pk, increment]
+  reporter_id bigint [ref: > users.id]
+  target_type varchar(20)
+  target_id bigint
+  reason varchar(20)
+  details text
+  status varchar(10) [default: 'open']
+  handled_by_id bigint [ref: > users.id]
+  created_at timestamptz
+  resolved_at timestamptz
+  indexes { (status, created_at) }
+}
+
+Table moderation_actions {
+  id bigint [pk, increment]
+  moderator_id bigint [ref: > users.id]
+  target_type varchar(20)
+  target_id bigint
+  action varchar(10)
+  reason text
+  created_at timestamptz
+}
+
+Table import_jobs {
+  id bigint [pk, increment]
+  source varchar(20)
+  requested_by_id bigint [ref: > users.id]
+  status varchar(10)
+  stats jsonb
+  error text
+  started_at timestamptz
+  finished_at timestamptz
+}
+
+Table audit_log {
+  id bigint [pk, increment]
+  actor_id bigint [ref: > users.id]
+  action varchar
+  entity_type varchar(30)
+  entity_id bigint
+  changes jsonb
+  ip_address varchar(45)
+  created_at timestamptz
+  indexes { (entity_type, entity_id) }
+}
+
+Table feature_flags {
+  key varchar [pk]
+  enabled boolean
+  description text
+}
+
+// ---------------------------------------------------------------
+// TABLE GROUPS (colour-coded in dbdiagram.io)
+// ---------------------------------------------------------------
+TableGroup users_and_auth {
+  users
+  user_settings
+  user_social_links
+  auth_tokens
+  oauth_accounts
+  push_subscriptions
+}
+
+TableGroup catalog {
+  books
+  authors
+  author_claim_requests
+  book_authors
+  genres
+  book_genres
+  tags
+  book_tags
+  series
+  book_editions
+}
+
+TableGroup library_and_tracking {
+  shelves
+  shelf_books
+  reading_progress
+  reading_sessions
+  reading_goals
+  user_streaks
+  user_stats_monthly
+}
+
+TableGroup reviews_quotes_lists {
+  book_reviews
+  review_likes
+  review_comments
+  review_aspect_ratings
+  quotes
+  quote_likes
+  book_lists
+  book_list_items
+  book_list_likes
+  book_activity_daily
+}
+
+TableGroup social {
+  follows
+  user_blocks
+  activities
+  activity_likes
+  activity_comments
+  discussions
+  discussion_posts
+  reading_clubs
+  club_members
+  conversations
+  conversation_participants
+  messages
+  book_recommendations_sent
+}
+
+TableGroup gamification {
+  badges
+  user_badges
+  user_progression
+  challenges
+  challenge_participants
+  notifications
+}
+
+TableGroup ai {
+  book_embeddings
+  user_taste_profiles
+  recommendation_models
+  recommendations
+  recommendation_feedback
+  dataset_ratings
+  rag_chunks
+  ai_review_summaries
+  assistant_conversations
+  assistant_messages
+  search_logs
+}
+
+TableGroup platform {
+  reports
+  moderation_actions
+  import_jobs
+  audit_log
+  feature_flags
+}
