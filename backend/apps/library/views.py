@@ -1,11 +1,15 @@
 from django.db.models import Count
+from django.utils import timezone
+from django.utils.dateparse import parse_date
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from . import services
-from .models import ReadingProgress, Shelf, ShelfBook
-from .serializers import (AddBookSerializer, ReadingProgressSerializer,
+from .models import ReadingGoal, ReadingProgress, ReadingSession, Shelf, ShelfBook, UserStreak
+from .serializers import (AddBookSerializer, ReadingGoalSerializer,
+                          ReadingProgressSerializer, ReadingSessionSerializer,
                           SetStatusSerializer, ShelfBookSerializer, ShelfSerializer)
 
 
@@ -98,3 +102,62 @@ class ReadingProgressViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
         progress = services.set_status(
             request.user, data.validated_data["book"], data.validated_data["status"])
         return Response(ReadingProgressSerializer(progress).data)
+    
+class SessionViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
+                     mixins.RetrieveModelMixin, mixins.DestroyModelMixin,
+                     viewsets.GenericViewSet):
+    serializer_class = ReadingSessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    ordering_fields = ["started_at", "duration_seconds"]
+    ordering = ["-started_at"]
+
+    def get_queryset(self):
+        qs = ReadingSession.objects.filter(user=self.request.user).select_related("book")
+        p = self.request.query_params
+        if p.get("book"):
+            qs = qs.filter(book_id=p["book"])
+        if p.get("from") and parse_date(p["from"]):
+            qs = qs.filter(started_at__date__gte=parse_date(p["from"]))
+        if p.get("to") and parse_date(p["to"]):
+            qs = qs.filter(started_at__date__lte=parse_date(p["to"]))
+        return qs
+
+    def perform_destroy(self, instance):
+        user = instance.user
+        instance.delete()
+        services.rebuild_streak(user)
+
+
+class GoalViewSet(viewsets.ModelViewSet):
+    serializer_class = ReadingGoalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = ReadingGoal.objects.filter(user=self.request.user).order_by("-year", "goal_type")
+        if self.request.query_params.get("year"):
+            qs = qs.filter(year=self.request.query_params["year"])
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class StreakView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        streak = UserStreak.objects.filter(user=request.user).first()
+        return Response(services.streak_summary(streak))
+
+
+class StatsOverviewView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        try:
+            year = int(request.query_params.get("year", timezone.localdate().year))
+        except ValueError:
+            return Response({"detail": "year trebuie să fie un număr."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        return Response(services.stats_overview(request.user, year))
