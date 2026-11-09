@@ -21,3 +21,10 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ("id", "username", "email", "first_name", "last_name",
                   "avatar_url", "bio", "country", "date_of_birth", "date_joined")
         read_only_fields = ("id", "username", "date_joined")
+
+
+class UserMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "username", "avatar_url")
+
