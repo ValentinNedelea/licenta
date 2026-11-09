@@ -41,7 +41,7 @@ class BookListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = ("id", "title", "subtitle", "cover_img_url", "authors",
-                  "avg_rating", "rating_count", "publication_date")
+                  "avg_rating", "rating_count", "external_avg_rating", "external_rating_count", "publication_date")
 
     def get_authors(self, book):
         return authors_of(book)
@@ -59,7 +59,7 @@ class BookDetailSerializer(serializers.ModelSerializer):
         fields = ("id", "title", "subtitle", "description", "isbn10", "isbn13",
                   "cover_img_url", "publication_date", "language", "page_count",
                   "publisher", "series", "series_position", "avg_rating",
-                  "rating_count", "authors", "genres", "tags")
+                  "rating_count", "external_avg_rating", "external_rating_count", "authors", "genres", "tags")
 
     def get_authors(self, book):
         return authors_of(book)

@@ -116,6 +116,10 @@ class Book(models.Model):
     # contoare denormalizate, actualizate când se adaugă/șterg rating-uri
     avg_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
     rating_count = models.PositiveIntegerField(default=0)
+    # media și numărul de rating-uri din dataset-ul extern (Goodbooks-10k);
+    # nu se recalculează, spre deosebire de avg_rating / rating_count
+    external_avg_rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)
+    external_rating_count = models.PositiveIntegerField(default=0)
     # sursa importului (de ex. openlibrary, goodbooks10k) și id-ul din acea sursă
     external_source = models.CharField(max_length=20, blank=True)
     external_id = models.CharField(max_length=100, blank=True)

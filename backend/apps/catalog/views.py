@@ -7,7 +7,8 @@ from .serializers import (AuthorSerializer, BookDetailSerializer,
 
 class BookViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ["title", "subtitle", "isbn13", "authors__name"]
-    ordering_fields = ["title", "avg_rating", "rating_count", "publication_date"]
+    ordering_fields = ["title", "avg_rating", "rating_count", "publication_date",
+                       "external_avg_rating", "external_rating_count"]
     ordering = ["title"]
 
     def get_queryset(self):
