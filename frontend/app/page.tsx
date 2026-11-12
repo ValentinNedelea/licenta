@@ -1,19 +1,18 @@
-import { Suspense } from "react";
-
-async function BackendStatus() {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/health/`, {
-    cache: "no-store",
-  });
-  const data = await res.json();
-  return <h1 className="text-2xl font-bold">Backend: {data.status}</h1>;
-}
+import Link from "next/link";
 
 export default function Home() {
   return (
-    <main className="p-8">
-      <Suspense fallback={<p>Se încarcă...</p>}>
-        <BackendStatus />
-      </Suspense>
-    </main>
+    <div className="py-12 text-center">
+      <h1 className="text-4xl font-bold text-amber-800">Bookshelf</h1>
+      <p className="mx-auto mt-3 max-w-md text-stone-600">
+        Urmărește ce citești, notează cărțile și descoperă următoarea lectură.
+      </p>
+      <Link
+        href="/books"
+        className="mt-6 inline-block rounded bg-amber-800 px-5 py-2 text-white hover:bg-amber-900"
+      >
+        Explorează cărțile
+      </Link>
+    </div>
   );
 }

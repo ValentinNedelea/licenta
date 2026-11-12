@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+
 from . import services
 from .models import ReadingGoal, ReadingProgress, ReadingSession, Shelf, ShelfBook, UserStreak
 from .serializers import (AddBookSerializer, ReadingGoalSerializer,
@@ -39,10 +40,9 @@ class ShelfViewSet(viewsets.ModelViewSet):
                    .select_related("book")
                    .prefetch_related("book__bookauthor_set__author")
                    .order_by("position", "-added_at"))
-        page = self.paginate_queryset(entries)
-        serializer = ShelfBookSerializer(page, many=True)
-        return self.get_paginated_response(serializer.data)
-
+        serializer = ShelfBookSerializer(entries, many=True, context={"request": request})
+        return Response(serializer.data)
+    
     @action(detail=True, methods=["post"], url_path="add-book",
             serializer_class=AddBookSerializer)
     def add_book(self, request, pk=None):
