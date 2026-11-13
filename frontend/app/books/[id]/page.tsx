@@ -7,6 +7,7 @@ import Stars from "@/components/Stars";
 import Cover from "@/components/Cover";
 import ShelfButton from "@/components/ShelfButton";
 import Reviews from "@/components/Reviews";
+import ReadingTimer from "@/components/ReadingTimer";
 
 export default function BookPage({
   params,
@@ -72,6 +73,7 @@ export default function BookPage({
           </div>
 
           <ShelfButton bookId={book.id} />
+          <ReadingTimer bookId={book.id} />
 
           <p className="mt-3 text-sm text-stone-500">
             {book.page_count ? `${book.page_count} pagini` : ""}

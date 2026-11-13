@@ -21,6 +21,9 @@ export default function Navbar() {
               <Link href="/library" className="hover:underline">
                 Biblioteca mea
               </Link>
+              <Link href="/stats" className="hover:underline">
+                Statistici
+              </Link>
               <span className="text-stone-500">{user.username}</span>
               <button
                 onClick={logout}
