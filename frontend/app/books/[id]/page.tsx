@@ -8,6 +8,7 @@ import Cover from "@/components/Cover";
 import ShelfButton from "@/components/ShelfButton";
 import Reviews from "@/components/Reviews";
 import ReadingTimer from "@/components/ReadingTimer";
+import Quotes from "@/components/Quotes";
 
 export default function BookPage({
   params,
@@ -92,6 +93,7 @@ export default function BookPage({
         </div>
       </div>
 
+      <Quotes bookId={book.id} />
       <Reviews bookId={book.id} />
     </>
   );

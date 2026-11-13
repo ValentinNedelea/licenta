@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api, errorText } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import Stars from "./Stars";
+import ReviewComments from "./ReviewComments";
 
 type Review = {
   id: number;
@@ -59,10 +60,17 @@ export default function Reviews({ bookId }: { bookId: number }) {
     e.preventDefault();
     setBusy(true);
     setMsg("");
-    const payload = { rating: Number(rating), review_text: text, has_spoilers: spoiler };
+    const payload = {
+      rating: Number(rating),
+      review_text: text,
+      has_spoilers: spoiler,
+    };
     try {
       if (editing !== null) {
-        await api(`/api/reviews/${editing}/`, { method: "PATCH", body: JSON.stringify(payload) });
+        await api(`/api/reviews/${editing}/`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
       } else {
         await api("/api/reviews/", {
           method: "POST",
@@ -87,7 +95,9 @@ export default function Reviews({ bookId }: { bookId: number }) {
 
   async function toggleLike(r: Review) {
     if (!user) return;
-    await api(`/api/reviews/${r.id}/like/`, { method: r.liked_by_me ? "DELETE" : "POST" });
+    await api(`/api/reviews/${r.id}/like/`, {
+      method: r.liked_by_me ? "DELETE" : "POST",
+    });
     setReviews((list) =>
       list.map((x) =>
         x.id === r.id
@@ -146,13 +156,19 @@ export default function Reviews({ bookId }: { bookId: number }) {
               />
               Conține spoilere
             </label>
-            {msg && <p className="whitespace-pre-line text-sm text-red-600">{msg}</p>}
+            {msg && (
+              <p className="whitespace-pre-line text-sm text-red-600">{msg}</p>
+            )}
             <div className="flex gap-2">
               <button
                 disabled={busy}
                 className="rounded bg-amber-800 px-4 py-2 text-white hover:bg-amber-900 disabled:opacity-50"
               >
-                {busy ? "Se trimite..." : editing !== null ? "Salvează" : "Publică recenzia"}
+                {busy
+                  ? "Se trimite..."
+                  : editing !== null
+                    ? "Salvează"
+                    : "Publică recenzia"}
               </button>
               {editing !== null && (
                 <button
@@ -185,19 +201,30 @@ export default function Reviews({ bookId }: { bookId: number }) {
           const mine = !!user && r.user.id === user.id;
 
           return (
-            <article key={r.id} className="rounded-lg border border-stone-200 bg-white p-4">
+            <article
+              key={r.id}
+              className="rounded-lg border border-stone-200 bg-white p-4"
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <strong>{r.user.username}</strong>
                   <Stars value={Number(r.rating)} />
-                  <span className="text-sm text-stone-500">{Number(r.rating).toFixed(2)}</span>
+                  <span className="text-sm text-stone-500">
+                    {Number(r.rating).toFixed(2)}
+                  </span>
                 </div>
                 {mine && (
                   <div className="flex gap-3 text-sm">
-                    <button onClick={() => startEdit(r)} className="text-stone-600 hover:underline">
+                    <button
+                      onClick={() => startEdit(r)}
+                      className="text-stone-600 hover:underline"
+                    >
                       Editează
                     </button>
-                    <button onClick={() => remove(r.id)} className="text-red-600 hover:underline">
+                    <button
+                      onClick={() => remove(r.id)}
+                      className="text-red-600 hover:underline"
+                    >
                       Șterge
                     </button>
                   </div>
@@ -216,7 +243,8 @@ export default function Reviews({ bookId }: { bookId: number }) {
                   <p className="mt-2 whitespace-pre-line">{r.review_text}</p>
                 ))}
 
-              <div className="mt-3 flex items-center gap-4 text-sm text-stone-500">
+              <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-stone-500">
+                {" "}
                 <button
                   onClick={() => toggleLike(r)}
                   disabled={!user}
@@ -228,12 +256,14 @@ export default function Reviews({ bookId }: { bookId: number }) {
                 >
                   👍 Util · {r.helpful_count}
                 </button>
-                <span>{r.comments_count} comentarii</span>
+                <ReviewComments reviewId={r.id} count={r.comments_count} />{" "}
               </div>
             </article>
           );
         })}
-        {reviews.length === 0 && <p className="text-stone-500">Nicio recenzie încă.</p>}
+        {reviews.length === 0 && (
+          <p className="text-stone-500">Nicio recenzie încă.</p>
+        )}
       </div>
     </section>
   );
