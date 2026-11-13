@@ -8,13 +8,16 @@ export default function Navbar() {
 
   return (
     <header className="border-b border-stone-200 bg-white">
-      <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+      <nav className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
         <Link href="/" className="text-lg font-bold text-amber-800">
           Bookshelf
         </Link>
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-4 text-sm">
           <Link href="/books" className="hover:underline">
             Cărți
+          </Link>
+          <Link href="/lists" className="hover:underline">
+            Liste
           </Link>
           {loading ? null : user ? (
             <>
@@ -24,7 +27,9 @@ export default function Navbar() {
               <Link href="/stats" className="hover:underline">
                 Statistici
               </Link>
-              <span className="text-stone-500">{user.username}</span>
+              <Link href="/profile" className="text-stone-600 hover:underline">
+                {user.username}
+              </Link>
               <button
                 onClick={logout}
                 className="rounded border px-3 py-1 hover:bg-stone-100"

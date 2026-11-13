@@ -10,6 +10,8 @@ import Reviews from "@/components/Reviews";
 import ReadingTimer from "@/components/ReadingTimer";
 import Quotes from "@/components/Quotes";
 import ShelfPicker from "@/components/ShelfPicker";
+import Link from "next/link";
+import ListPicker from "@/components/ListPicker";
 
 export default function BookPage({
   params,
@@ -49,7 +51,27 @@ export default function BookPage({
             <p className="text-lg text-stone-600">{book.subtitle}</p>
           )}
           <p className="mt-1 text-stone-700">
-            de {authorNames(book) || "autor necunoscut"}
+            de{" "}
+            {(book.authors ?? []).length === 0
+              ? "autor necunoscut"
+              : (book.authors ?? []).map((a, i) =>
+                  typeof a === "string" ? (
+                    <span key={i}>
+                      {i > 0 ? ", " : ""}
+                      {a}
+                    </span>
+                  ) : (
+                    <span key={a.id}>
+                      {i > 0 ? ", " : ""}
+                      <Link
+                        href={`/authors/${a.id}`}
+                        className="text-amber-800 hover:underline"
+                      >
+                        {a.name}
+                      </Link>
+                    </span>
+                  ),
+                )}
           </p>
 
           {rating && (
@@ -76,6 +98,7 @@ export default function BookPage({
 
           <ShelfButton bookId={book.id} />
           <ShelfPicker bookId={book.id} />
+          <ListPicker bookId={book.id} />
           <ReadingTimer bookId={book.id} />
 
           <p className="mt-3 text-sm text-stone-500">
