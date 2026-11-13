@@ -64,3 +64,21 @@ class Recommendation(models.Model):
             models.UniqueConstraint(fields=["user", "book", "model"], name="uniq_reco_user_book_model"),
         ]
         ordering = ["rank"]
+
+class BookSimilarity(models.Model):
+    """Cei mai apropiați vecini ai unei cărți, calculați de un model de recomandare."""
+
+    model = models.ForeignKey(RecommendationModel, on_delete=models.CASCADE, related_name="similarities")
+    book = models.ForeignKey("catalog.Book", on_delete=models.CASCADE, related_name="+")
+    similar_book = models.ForeignKey("catalog.Book", on_delete=models.CASCADE, related_name="+")
+    score = models.FloatField()
+    rank = models.SmallIntegerField()
+
+    class Meta:
+        db_table = "book_similarities"
+        constraints = [
+            models.UniqueConstraint(fields=["model", "book", "similar_book"], name="uniq_book_similarity"),
+        ]
+        indexes = [
+            models.Index(fields=["model", "book", "rank"], name="bsim_lookup_idx"),
+        ]

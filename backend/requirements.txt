@@ -5,3 +5,5 @@ django-cors-headers
 django-environ
 psycopg[binary]
 pgvector
+numpy
+scipy
