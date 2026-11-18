@@ -12,6 +12,7 @@ import Quotes from "@/components/Quotes";
 import ShelfPicker from "@/components/ShelfPicker";
 import Link from "next/link";
 import ListPicker from "@/components/ListPicker";
+import SimilarBooks from "@/components/SimilarBooks";
 
 export default function BookPage({
   params,
@@ -118,6 +119,7 @@ export default function BookPage({
         </div>
       </div>
 
+      <SimilarBooks bookId={book.id} />
       <Quotes bookId={book.id} />
       <Reviews bookId={book.id} />
     </>
