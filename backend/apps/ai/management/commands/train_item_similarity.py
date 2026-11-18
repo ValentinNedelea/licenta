@@ -13,14 +13,15 @@ MODEL_NAME = "item-knn-adjusted-cosine"
 
 
 class Command(BaseCommand):
-    help = "Calculează cărțile similare (item-item, cosinus ajustat) din dataset_ratings."
+    help = "Calculează cărțile similare (item-item, cosinus ajustat cu shrinkage) din dataset_ratings."
 
     def add_arguments(self, parser):
-        parser.add_argument("--k", type=int, default=30, help="Vecini păstrați pentru fiecare carte")
+        parser.add_argument("--k", type=int, default=10, help="Vecini păstrați pentru fiecare carte")
+        parser.add_argument("--shrink", type=float, default=30.0, help="Shrinkage: sim * n/(n+λ), n = cititori comuni (0 = dezactivat)")
         parser.add_argument("--chunk", type=int, default=500, help="Câte cărți se procesează deodată")
 
     def handle(self, *args, **opts):
-        k, chunk = opts["k"], opts["chunk"]
+        k, lam, chunk = opts["k"], opts["shrink"], opts["chunk"]
         t0 = time.time()
 
         self.stdout.write("Citesc rating-urile...")
@@ -52,11 +53,21 @@ class Command(BaseCommand):
         X = (sparse.diags((1.0 / norms).astype(np.float32)) @ X).tocsr()
         XT = X.T.tocsr()
 
-        self.stdout.write("Calculez similaritățile...")
+        # matrice binară (cine a evaluat ce), pentru numărul de cititori comuni
+        B = BT = None
+        if lam > 0:
+            ones = np.ones(len(bidx), dtype=np.float32)
+            B = sparse.csr_matrix((ones, (bidx, ui)), shape=(n_books, n_users), dtype=np.float32)
+            BT = B.T.tocsr()
+
+        self.stdout.write(f"Calculez similaritățile (k={k}, shrink={lam:g})...")
         rows = []
         for start in range(0, n_books, chunk):
             end = min(start + chunk, n_books)
             S = (X[start:end] @ XT).toarray()
+            if lam > 0:
+                N = (B[start:end] @ BT).toarray()
+                S *= N / (N + lam)
             for i in range(end - start):
                 S[i, start + i] = -1.0  # o carte nu e vecină cu ea însăși
             kk = min(k, n_books - 1)
@@ -71,14 +82,15 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             model, _ = RecommendationModel.objects.get_or_create(
-                name=MODEL_NAME, type="collaborative", defaults={"version": "1"}
+                name=MODEL_NAME, type="collaborative", defaults={"version": "2"}
             )
             BookSimilarity.objects.filter(model=model)._raw_delete(using="default")
             BookSimilarity.objects.bulk_create(
                 [BookSimilarity(model=model, book_id=b, similar_book_id=s, score=sc, rank=r) for b, s, sc, r in rows],
                 batch_size=10_000,
             )
-            model.params = {"k": k, "dataset": DATASET, "similarity": "adjusted_cosine"}
+            model.version = "2"
+            model.params = {"k": k, "shrink": lam, "dataset": DATASET, "similarity": "adjusted_cosine"}
             model.trained_at = timezone.now()
             model.is_active = True
             model.save()
