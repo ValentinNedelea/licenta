@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.db import models
-
+from pgvector.django import VectorField
 
 class DatasetRating(models.Model):
     """Rating-uri din dataset-uri publice (Goodbooks-10k), folosite la antrenarea recomandărilor.
@@ -82,3 +82,15 @@ class BookSimilarity(models.Model):
         indexes = [
             models.Index(fields=["model", "book", "rank"], name="bsim_lookup_idx"),
         ]
+
+class BookEmbedding(models.Model):
+    book = models.OneToOneField("catalog.Book", on_delete=models.CASCADE, related_name="embedding")
+    embedding = VectorField(dimensions=384)
+    model_name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "book_embeddings"
+
+    def __str__(self):
+        return f"embedding #{self.book_id}"
